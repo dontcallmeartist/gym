@@ -144,3 +144,7 @@ del todo y vuelve a abrirla).
   - `node tools/mock-apps-script.mjs 8090 clave` → ejecuta el `Code.gs` real con
     una hoja simulada (URL `http://localhost:8090/exec`), para probar sin Google.
   - `./tools/make-icons.ps1` (PowerShell) → genera los iconos a partir de `icons/icono_gimnasio_1024.png`.
+  - `node tools/cargar-rutina.mjs <rutina.json> [--probar]` → carga una rutina en la hoja (reutiliza
+    ejercicios por nombre y archiva la anterior). `node tools/borrar-rutina.mjs "<nombre>"` → borra una
+    rutina archivada sin entrenos. Leen la URL y la clave de `.private/conexion.txt` (no está en el repo).
+- Fechas en la hoja: se guardan a las 12:00 UTC y se leen en UTC (evita desfases de un día entre zonas horarias).

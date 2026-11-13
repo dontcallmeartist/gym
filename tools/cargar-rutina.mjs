@@ -13,8 +13,10 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
+// Todo dentro de main() para terminar limpiamente (sin process.exit tras usar fetch).
+async function main() {
 const [file, flag] = process.argv.slice(2);
-if (!file) { console.error('Uso: node tools/cargar-rutina.mjs <rutina.json> [--probar]'); process.exit(1); }
+if (!file) { console.error('Uso: node tools/cargar-rutina.mjs <rutina.json> [--probar]'); { process.exitCode = 1; return; } }
 const dryRun = flag === '--probar';
 // Para pruebas con el simulador: GYM_URL y GYM_KEY sustituyen a conexion.txt.
 const conf = process.env.GYM_URL ? [] : readFileSync(new URL('../.private/conexion.txt', import.meta.url), 'utf8').split(/\r?\n/);
@@ -77,7 +79,7 @@ console.log(`Ejercicios reutilizados (conservan historial): ${[...idsRutina].fil
 console.log(`Ejercicios nuevos: ${ejercicios.filter((e) => e.nuevo).length}`);
 console.log(`Rutinas que se archivan: ${archivadas.map((r) => r.nombre).join(', ') || 'ninguna'}`);
 console.log(`Ejercicios sin uso que se archivan: ${ejercicios.filter((e) => e.archivado).map((e) => e.nombre).join(', ') || 'ninguno'}`);
-if (dryRun) { console.log('\n(--probar: no se ha escrito nada)'); process.exit(0); }
+if (dryRun) { console.log('\n(--probar: no se ha escrito nada)'); { process.exitCode = 0; return; } }
 
 await call({
   action: 'sync', sesiones: [], registros: [], borrados: [],
@@ -87,3 +89,5 @@ await call({
 const check = await call({ action: 'restore' });
 const ok = check.rutinas.some((r) => r.id === nueva.id && !r.fin && r.dias.length === nueva.dias.length);
 console.log(ok ? '\n✓ Rutina cargada en la hoja. En el iPhone: Ajustes → Restaurar desde Google.' : '\n✘ Algo no cuadra: revisa la hoja.');
+}
+await main();

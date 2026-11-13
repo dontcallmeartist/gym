@@ -42,7 +42,7 @@ function doPost(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     prepararHojas(ss);
-    if (body.action === 'ping') return responder({ ok: true, hoja: ss.getName() });
+    if (body.action === 'ping') return responder({ ok: true, hoja: ss.getName(), zona_hoja: ss.getSpreadsheetTimeZone(), zona_script: Session.getScriptTimeZone() });
     if (body.action === 'sync') { sincronizar(ss, body); return responder({ ok: true }); }
     if (body.action === 'restore') return responder(Object.assign({ ok: true }, restaurar(ss)));
     return responder({ ok: false, error: 'Acción desconocida' });
@@ -102,10 +102,21 @@ function texto(v) {
   return /^[=+\-@]/.test(s) ? "'" + s : s;
 }
 
-// Sheets convierte "2026-11-13" en fecha; al leerla la devolvemos como texto.
-function aFecha(v, tz) {
-  if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+/*
+ * Fechas. En Google conviven varias zonas horarias (la de la hoja, la del script y la
+ * del servidor), y una fecha guardada a medianoche puede verse como el día anterior.
+ * Por eso todas las fechas se guardan como fecha real a las 12:00 UTC (mediodía en
+ * hora universal) y se leen en UTC: así son el mismo día en cualquier zona horaria
+ * y Sheets las sigue tratando como fechas (sirven para ordenar y hacer gráficas).
+ */
+function aFecha(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, 'UTC', 'yyyy-MM-dd');
   return v === null || v === undefined ? '' : String(v);
+}
+function fechaCelda(v) {
+  const s = aFecha(v);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  return m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0)) : s;
 }
 
 function lunes(fecha) {
@@ -137,17 +148,17 @@ function sincronizar(ss, body) {
     escribir(ss, 'Ejercicios', filas);
   }
 
-  // Rutinas: se reescriben enteras las rutinas recibidas
   const rutinas = body.rutinas || [];
   const nombresRutina = {}, nombresDia = {};
-  if (rutinas.length) {
+  // Rutinas: se reescriben enteras las recibidas y se quitan las borradas (borrados con su id)
+  if (rutinas.length || borrados.length) {
     const recibidas = {};
     rutinas.forEach(function (r) { recibidas[r.id] = true; });
-    let filas = leer(ss, 'Rutinas').filter(function (f) { return !recibidas[f[0]]; });
+    let filas = leer(ss, 'Rutinas').filter(function (f) { return !recibidas[f[0]] && !borrar[f[0]]; });
     rutinas.forEach(function (r) {
       nombresRutina[r.id] = r.nombre;
       const estado = r.fin ? 'Archivada' : 'Activa';
-      const base = [r.id, texto(r.nombre), r.inicio, r.fin || '', estado];
+      const base = [r.id, texto(r.nombre), fechaCelda(r.inicio), r.fin ? fechaCelda(r.fin) : '', estado];
       if (!r.dias.length) filas.push(base.concat(['', '', '', '', '', '', '', '', '', '', '', '']));
       r.dias.forEach(function (d, di) {
         nombresDia[d.id] = d.nombre;
@@ -160,12 +171,12 @@ function sincronizar(ss, body) {
     });
     // Renombres de ejercicios también en Rutinas
     filas = filas.map(function (f) { if (f[10] && nombres[f[10]] !== undefined) f[11] = texto(nombres[f[10]]); return f; });
-    escribir(ss, 'Rutinas', filas);
+    escribir(ss, 'Rutinas', filas.map(fechasRutina));
   } else if (ejercicios.length) {
     const filas = leer(ss, 'Rutinas');
     let cambio = false;
     filas.forEach(function (f) { if (f[10] && nombres[f[10]] !== undefined && f[11] !== nombres[f[10]]) { f[11] = texto(nombres[f[10]]); cambio = true; } });
-    if (cambio) escribir(ss, 'Rutinas', filas);
+    if (cambio) escribir(ss, 'Rutinas', filas.map(fechasRutina));
   }
 
   // Registros
@@ -174,7 +185,7 @@ function sincronizar(ss, body) {
   const idx = {};
   filas.forEach(function (f, i) { idx[f[0]] = i; });
   registros.forEach(function (r) {
-    const fila = [r.id, r.fecha, texto(r.rutina), texto(r.dia), r.ejercicio_id, texto(r.ejercicio), r.serie, r.peso, r.reps, texto(r.nota), r.id_sesion, r.id_rutina, r.id_dia];
+    const fila = [r.id, fechaCelda(r.fecha), texto(r.rutina), texto(r.dia), r.ejercicio_id, texto(r.ejercicio), r.serie, r.peso, r.reps, texto(r.nota), r.id_sesion, r.id_rutina, r.id_dia];
     if (idx[r.id] !== undefined) filas[idx[r.id]] = fila; else { idx[r.id] = filas.length; filas.push(fila); }
   });
   // Renombres: el nombre se actualiza en todo el historial (el id no cambia)
@@ -191,7 +202,7 @@ function sincronizar(ss, body) {
     if (a[5] !== b[5]) return String(a[5]) < String(b[5]) ? -1 : 1;
     return Number(a[6]) - Number(b[6]);
   });
-  escribir(ss, 'Registros', filas);
+  escribir(ss, 'Registros', filas.map(function (f) { f[1] = fechaCelda(f[1]); return f; }));
   escribirProgreso(ss, filas, tz);
 }
 
@@ -210,7 +221,7 @@ function escribirProgreso(ss, registros, tz) {
   });
   const filas = Object.keys(grupos).map(function (k) { return grupos[k]; })
     .sort(function (a, b) { return a.ejercicio.localeCompare(b.ejercicio, 'es') || (a.semana < b.semana ? -1 : a.semana > b.semana ? 1 : 0); })
-    .map(function (g) { return [texto(g.ejercicio), g.semana, g.max, Math.round(g.vol * 100) / 100, g.series]; });
+    .map(function (g) { return [texto(g.ejercicio), fechaCelda(g.semana), g.max, Math.round(g.vol * 100) / 100, g.series]; });
   escribir(ss, 'Progreso', filas);
 }
 
@@ -254,4 +265,11 @@ function restaurar(ss) {
     };
   });
   return { ejercicios: ejercicios, rutinas: rutinas, registros: registros };
+}
+
+// Normaliza las fechas de una fila de Rutinas (inicio y fin) al guardarlas.
+function fechasRutina(f) {
+  f[2] = fechaCelda(f[2]);
+  f[3] = f[3] === '' || f[3] === null ? '' : fechaCelda(f[3]);
+  return f;
 }

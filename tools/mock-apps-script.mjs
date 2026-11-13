@@ -8,9 +8,13 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
+// El servidor de Google ejecuta el script con una zona horaria propia (en la prueba real: UTC+9).
+process.env.TZ = 'Asia/Tokyo';
 const PORT = Number(process.argv[2]) || 8090;
 const KEY = process.argv[3] || 'clave-de-prueba';
-const TZ = 'Europe/Madrid';
+// Igual que la hoja real: la hoja con hora de Los Ángeles y el script con la de Madrid.
+const SHEET_TZ = 'America/Los_Angeles';
+const SCRIPT_TZ = 'Europe/Madrid';
 
 class Range {
   constructor(sheet, r, c, nr, nc) { Object.assign(this, { sheet, r, c, nr, nc }); }
@@ -38,7 +42,8 @@ function convert(v) {
   if (typeof v === 'string') {
     if (v.startsWith("'")) return v.slice(1);
     const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (m) return new SheetDate(SheetDate.UTC(+m[1], +m[2] - 1, +m[3], 11)); // mediodía: misma fecha en Madrid
+    // Como Sheets (comprobado en la hoja real): el texto se convierte en fecha a medianoche UTC.
+    if (m) return new SheetDate(SheetDate.UTC(+m[1], +m[2] - 1, +m[3]));
   }
   return v;
 }
@@ -54,7 +59,7 @@ function newSpreadsheet() {
   return {
     sheets,
     getName: () => 'Gym (hoja simulada)',
-    getSpreadsheetTimeZone: () => TZ,
+    getSpreadsheetTimeZone: () => SHEET_TZ,
     getSheets: () => sheets,
     getSheetByName: (n) => sheets.find((s) => s.name === n) || null,
     insertSheet: (n) => { const s = new Sheet(n); sheets.push(s); return s; },
@@ -67,6 +72,7 @@ const ctx = {
   SpreadsheetApp: { getActiveSpreadsheet: () => ss },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { createTextOutput: (s) => ({ s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
+  Session: { getScriptTimeZone: () => SCRIPT_TZ },
   Utilities: { formatDate: (d, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d) },
   console,
 };
@@ -79,7 +85,7 @@ vm.runInContext(src, ctx, { filename: 'Code.gs' });
 
 const pending = new Map();
 let counter = 0, requests = 0, preflights = 0;
-const dump = () => Object.fromEntries(ss.sheets.map((s) => [s.name, s.data.slice(0, s.getLastRow()).map((r) => r.map((v) => (v instanceof SheetDate ? ctx.Utilities.formatDate(v, TZ) : v)))]));
+const dump = () => Object.fromEntries(ss.sheets.map((s) => [s.name, s.data.slice(0, s.getLastRow()).map((r) => r.map((v) => (v instanceof SheetDate ? ctx.Utilities.formatDate(v, 'UTC') : v)))]));
 
 createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
