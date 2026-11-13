@@ -261,3 +261,5 @@ a.list-item { text-decoration: none; }
 .list-item a.main { color: inherit; text-decoration: none; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
 .star { min-width: 44px; min-height: 44px; padding: 0; background: transparent; font-size: 24px; line-height: 1; color: var(--muted); }
 .star.on { color: #f0a500; }
+/* Aviso de entreno sin terminar */
+.card.stale { background: var(--warn-bg); color: var(--warn-ink); }

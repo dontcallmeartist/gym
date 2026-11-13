@@ -12,7 +12,7 @@
  * No hay datos personales ni claves aquí: la URL del script y la clave se
  * escriben en Ajustes y se guardan solo en el dispositivo.
  */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 /* ==================== 1. Utilidades ==================== */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -497,6 +497,7 @@ async function render({ keepScroll = false } = {}) {
   const tab = VIEWS[parts[0]] ? parts[0] : 'entrenar';
   $$('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === tab));
   const y = window.scrollY;
+  if (location.hash !== ui.route) ui.pastAdd = null; // al cambiar de pantalla se descarta la serie a medio añadir
   let html;
   try { html = await VIEWS[tab](...parts.slice(1)); } catch (e) {
     console.error(e);
@@ -513,9 +514,14 @@ const rerender = () => render({ keepScroll: true });
 
 async function updateBanner() {
   const b = $('#banner');
-  const finished = (await dbAll('sessions')).filter((s) => s.status === 'terminada');
+  const sessions = await dbAll('sessions');
+  const finished = sessions.filter((s) => s.status === 'terminada');
   let msg = null;
-  if (finished.length) {
+  // 1.º aviso: un entreno de otro día que se quedó sin terminar (no se ha enviado a Google).
+  const stale = sessions.find((s) => s.status === 'en_curso' && s.date < today());
+  if (stale && !location.hash.startsWith('#entrenar') && location.hash !== '') {
+    msg = `⚠ Tienes un entreno sin terminar del ${fmtDate(stale.date)}. <a href="#entrenar">Revisar</a>`;
+  } else if (finished.length) {
     const last = await getMeta('lastSync');
     const ref = last || Math.min(...finished.map((s) => s.endedAt || parseDate(s.date).getTime()));
     const days = daysBetween(ref, Date.now());
@@ -535,9 +541,9 @@ function setRow({ exId, n, w, r, note, done, setId, mode }) {
     <div class="n">${n}</div>
     <div class="unit kg"><input data-f="w" inputmode="decimal" autocomplete="off" value="${esc(inputNum(w))}" aria-label="Peso serie ${n}"></div>
     <div class="unit reps"><input data-f="r" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(inputNum(r))}" aria-label="Repeticiones serie ${n}"></div>
-    <button class="note-btn${note ? ' has' : ''}" data-act="note" aria-label="Nota">✎</button>
-    ${mode === 'train'
-      ? '<button class="check" data-act="check" aria-label="Serie hecha">✓</button>'
+    ${mode === 'add' ? '<div></div>' : `<button class="note-btn${note ? ' has' : ''}" data-act="note" aria-label="Nota">✎</button>`}
+    ${mode === 'train' ? '<button class="check" data-act="check" aria-label="Serie hecha">✓</button>'
+      : mode === 'add' ? '<button class="check" data-act="past-add-ok" aria-label="Guardar serie">✓</button>'
       : '<button class="check" data-act="del-set" aria-label="Borrar serie">✕</button>'}
     ${note ? `<div class="set-note">${esc(note)}</div>` : ''}
   </div>`;
@@ -567,7 +573,15 @@ async function viewTrain() {
   const draft = session ? (session.draft || {}) : ui.preDraft;
   const lasts = await Promise.all(day.items.map((i) => lastSessionOf(i.exerciseId, session?.id)));
 
-  let html = session
+  let html = '';
+  if (session && session.date < today()) {
+    html += `<div class="card stale">
+      <b>⚠ Entreno sin terminar del ${fmtDate(session.date)}</b>
+      <p class="small" style="margin:6px 0 12px">Aún no está en Google. Revisa las series: si te falta alguna, escríbela y marca ✓. Después pulsa «Terminar y enviar».</p>
+      <button class="btn-primary btn-block" data-act="finish">Terminar y enviar</button>
+    </div>`;
+  }
+  html += session
     ? `<p class="muted small">Entreno en curso · ${esc(routine.name)}</p>`
     : `<p class="muted small">${day.weekday === new Date().getDay() ? 'Hoy toca' : 'Siguiente'} · ${esc(routine.name)}</p>`;
   html += `<h1>${esc(day.name)}</h1>`;
@@ -713,18 +727,31 @@ async function viewSession(id) {
     if (!groups.has(st.exerciseId)) groups.set(st.exerciseId, []);
     groups.get(st.exerciseId).push(st);
   }
+  // Serie nueva que se está añadiendo a esta sesión pasada (fila vacía con ✓).
+  const adding = ui.pastAdd && ui.pastAdd.sid === id ? ui.pastAdd : null;
+  if (adding && !groups.has(adding.exId)) groups.set(adding.exId, []);
   const ids = [...groups.keys()].sort((a, b) => ((order.indexOf(a) + 1) || 999) - ((order.indexOf(b) + 1) || 999));
+  const live = s.status === 'en_curso';
   let html = `<a class="btn btn-ghost back" href="javascript:history.back()">‹ Volver</a>
     <h1>${fmtDate(s.date, true)}</h1>
     <p class="muted">${esc(r?.name ?? s.routineName ?? '')} · ${esc(day?.name ?? s.dayName ?? '')}</p>`;
   if (s.status === 'en_curso') html += '<p><a href="#entrenar">Este entreno está en curso → Entrenar</a></p>';
   if (!ids.length) html += '<div class="empty">Esta sesión no tiene series.</div>';
   for (const exId of ids) {
+    const list = groups.get(exId);
+    const next = Math.max(0, ...list.map((st) => st.setNumber)) + 1;
+    const last = list[list.length - 1];
     html += `<section class="card"><h2>${esc(exMap.get(exId)?.name ?? 'Ejercicio')}</h2><div class="sets">
-      ${groups.get(exId).map((st) => setRow({ exId, n: st.setNumber, w: st.weight, r: st.reps, note: st.note, done: false, setId: st.id, mode: 'edit' })).join('')}
-    </div></section>`;
+      ${list.map((st) => setRow({ exId, n: st.setNumber, w: st.weight, r: st.reps, note: st.note, done: false, setId: st.id, mode: 'edit' })).join('')}
+      ${adding && adding.exId === exId ? setRow({ exId, n: next, w: last ? last.weight : '', r: '', done: false, mode: 'add' }) : ''}
+    </div>
+    ${!live && !(adding && adding.exId === exId) ? `<button class="btn-ghost btn-small add-set" data-act="past-add" data-sid="${id}" data-ex="${exId}">+ Serie</button>` : ''}
+    </section>`;
   }
-  html += '<p class="muted small center">Los cambios se guardan solos y se envían a Google.</p>';
+  if (!live) {
+    html += `<button class="btn-block" data-act="past-add-ex" data-sid="${id}">+ Añadir ejercicio a este entreno</button>
+      <p class="muted small center">Los cambios se guardan solos y se envían a Google.</p>`;
+  }
   return html;
 }
 
@@ -951,6 +978,7 @@ async function updateSetFromRow(row) {
 
 async function onSetInput(el) {
   const row = rowOfEl(el);
+  if (row.dataset.mode === 'add') return; // serie nueva de un entreno pasado: se guarda con su ✓
   if (row.dataset.id) await updateSetFromRow(row);
   else await saveDraft(row, {});
 }
@@ -1046,6 +1074,28 @@ const ACTIONS = {
       <p class="muted small">Objetivo: ${targetText(item)}</p>
       <div class="card note-text">${esc(item.note)}</div>
       <button class="btn-block" data-act="sheet-close">Cerrar</button>`);
+  },
+
+  /* --- Añadir series a un entreno pasado --- */
+  'past-add'(el) { ui.pastAdd = { sid: el.dataset.sid, exId: el.dataset.ex }; rerender(); },
+  async 'past-add-ex'(el) {
+    const sid = el.dataset.sid;
+    const used = (await setsOfSession(sid)).map((s) => s.exerciseId);
+    openPicker({
+      title: 'Añadir ejercicio al entreno', exclude: [...new Set(used)],
+      onPick: (exId) => { ui.pastAdd = { sid, exId }; rerender(); },
+    });
+  },
+  async 'past-add-ok'(el) {
+    const row = rowOfEl(el);
+    const v = readRow(row);
+    if (!v) return;
+    const s = await dbGet('sessions', ui.pastAdd.sid);
+    await dbPut('sets', { id: uuid(), sessionId: s.id, exerciseId: row.dataset.ex, setNumber: Number(row.dataset.n), weight: v.w, reps: v.r, note: '', date: s.date });
+    ui.pastAdd = null;
+    await markSessionChanged(s.id);
+    toast('Serie añadida');
+    rerender();
   },
 
   async fav(el) {
