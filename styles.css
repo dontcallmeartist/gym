@@ -110,7 +110,7 @@ button:disabled { opacity: .45; }
 .icon-btn { min-width: 44px; min-height: 44px; padding: 0; font-size: 20px; background: transparent; color: var(--muted); }
 
 /* Selector de días */
-.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; scrollbar-width: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .chips::-webkit-scrollbar { display: none; }
 .chip {
   flex: none; min-height: 44px; padding: 0 16px; border-radius: 22px;

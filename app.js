@@ -12,7 +12,7 @@
  * No hay datos personales ni claves aquí: la URL del script y la clave se
  * escriben en Ajustes y se guardan solo en el dispositivo.
  */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 /* ==================== 1. Utilidades ==================== */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -167,9 +167,9 @@ async function seedIfNeeded() {
   const routine = seed({
     id: uuid(), name: 'Rutina de ejemplo', startDate: today(), endDate: null,
     days: [
-      { id: uuid(), name: 'Día 1 – Empuje', weekday: 1, items: [it(0), it(1), it(2)] },
-      { id: uuid(), name: 'Día 2 – Tirón', weekday: 3, items: [it(3), it(4), it(5)] },
-      { id: uuid(), name: 'Día 3 – Pierna', weekday: 5, items: [it(6, 5), it(7), it(8, 5)] },
+      { id: uuid(), name: 'D1: Empuje', weekday: 1, items: [it(0), it(1), it(2)] },
+      { id: uuid(), name: 'D2: Tirón', weekday: 3, items: [it(3), it(4), it(5)] },
+      { id: uuid(), name: 'D3: Pierna', weekday: 5, items: [it(6, 5), it(7), it(8, 5)] },
     ],
   });
   await tx(['exercises', 'routines', 'meta'], 'readwrite', (t) => {
@@ -1030,7 +1030,7 @@ const ACTIONS = {
 
   /* --- Rutinas --- */
   'new-routine'() {
-    ui.edit = { isNew: true, id: uuid(), name: '', days: [{ id: uuid(), name: 'Día 1', weekday: null, items: [] }] };
+    ui.edit = { isNew: true, id: uuid(), name: '', days: [{ id: uuid(), name: 'D1', weekday: null, items: [] }] };
     location.hash = '#rutinas/nueva';
   },
   async 'dup-routine'(el) {
@@ -1050,7 +1050,7 @@ const ACTIONS = {
   },
   'edit-cancel'() { ui.edit = null; },
   'day-add'() {
-    ui.edit.days.push({ id: uuid(), name: `Día ${ui.edit.days.length + 1}`, weekday: null, items: [] });
+    ui.edit.days.push({ id: uuid(), name: `D${ui.edit.days.length + 1}`, weekday: null, items: [] });
     rerender();
   },
   'day-del'(el) {
@@ -1077,7 +1077,7 @@ const ACTIONS = {
     if (!ed.name) { toast('Ponle un nombre a la rutina'); $('#r-name').focus(); return; }
     if (!ed.days.length) { toast('Añade al menos un día'); return; }
     ed.days.forEach((d, i) => {
-      d.name = d.name.trim() || `Día ${i + 1}`;
+      d.name = d.name.trim() || `D${i + 1}`;
       d.items.forEach((it) => {
         it.sets = Math.max(1, Math.round(it.sets || 3));
         it.repMin = Math.max(1, Math.round(it.repMin || 8));
