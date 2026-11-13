@@ -1,0 +1,4 @@
+# Datos privados (URL del script, clave): nunca al repositorio
+.private/
+node_modules/
+*.log
