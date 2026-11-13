@@ -594,7 +594,7 @@ async function viewTrain() {
       rowsHtml += setRow({ exId: ex.id, n, w: v ? v.w : pre.w, r: v ? v.r : pre.r, note: v?.note, done: false, mode: 'train' });
     }
     html += `<section class="card">
-      <div class="ex-head"><h2>${esc(ex.name)}</h2>${item.note ? `<button class="info-btn" data-act="info" data-di="${idx}" aria-label="Notas del ejercicio">i</button>` : ''}<span class="target">${targetText(item)}</span></div>
+      <div class="ex-head"><div class="ex-name"><h2>${esc(ex.name)}</h2>${item.note ? ` <button class="info-btn" data-act="info" data-di="${idx}" aria-label="Notas del ejercicio">i</button>` : ''}</div><span class="target">${targetText(item)}</span></div>
       ${last.sets.length
         ? `<div class="last"><span class="date">Última vez · ${fmtDate(last.date)}</span><b>${last.sets.map(fmtSet).join(' · ')}</b></div>`
         : '<div class="last muted">Primera vez con este ejercicio</div>'}
