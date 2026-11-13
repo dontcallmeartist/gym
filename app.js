@@ -169,9 +169,9 @@ async function seedIfNeeded() {
   const routine = seed({
     id: uuid(), name: 'Rutina de ejemplo', startDate: today(), endDate: null,
     days: [
-      { id: uuid(), name: 'D1: Empuje', weekday: 1, items: [it(0), it(1), it(2)] },
-      { id: uuid(), name: 'D2: Tirón', weekday: 3, items: [it(3), it(4), it(5)] },
-      { id: uuid(), name: 'D3: Pierna', weekday: 5, items: [it(6, 5), it(7), it(8, 5)] },
+      { id: uuid(), name: 'D1 Empuje', weekday: 1, items: [it(0), it(1), it(2)] },
+      { id: uuid(), name: 'D2 Tirón', weekday: 3, items: [it(3), it(4), it(5)] },
+      { id: uuid(), name: 'D3 Pierna', weekday: 5, items: [it(6, 5), it(7), it(8, 5)] },
     ],
   });
   await tx(['exercises', 'routines', 'meta'], 'readwrite', (t) => {
