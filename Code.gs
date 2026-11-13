@@ -17,7 +17,7 @@ const CLAVE_SECRETA = 'CAMBIA_ESTA_CLAVE';
 
 const COLUMNAS = {
   Registros: ['id_serie', 'fecha', 'rutina', 'día', 'ejercicio_id', 'ejercicio', 'serie', 'peso', 'reps', 'nota', 'id_sesion', 'id_rutina', 'id_dia'],
-  Ejercicios: ['ejercicio_id', 'nombre', 'notas', 'archivado'],
+  Ejercicios: ['ejercicio_id', 'nombre', 'notas', 'archivado', 'favorito'],
   Rutinas: ['id_rutina', 'rutina', 'inicio', 'fin', 'estado', 'id_dia', 'orden_dia', 'día', 'día_semana', 'orden', 'ejercicio_id', 'ejercicio', 'series', 'reps_min', 'reps_max', 'incremento_kg', 'notas'],
   Progreso: ['ejercicio', 'semana (lunes)', 'peso_máx_kg', 'volumen_kg', 'series'],
 };
@@ -142,7 +142,7 @@ function sincronizar(ss, body) {
     const idx = {};
     filas.forEach(function (f, i) { idx[f[0]] = i; });
     ejercicios.forEach(function (e) {
-      const fila = [e.id, texto(e.nombre), texto(e.notas), e.archivado ? 'Sí' : 'No'];
+      const fila = [e.id, texto(e.nombre), texto(e.notas), e.archivado ? 'Sí' : 'No', e.favorito ? 'Sí' : 'No'];
       if (idx[e.id] !== undefined) filas[idx[e.id]] = fila; else { idx[e.id] = filas.length; filas.push(fila); }
     });
     escribir(ss, 'Ejercicios', filas);
@@ -229,7 +229,7 @@ function escribirProgreso(ss, registros, tz) {
 function restaurar(ss) {
   const tz = ss.getSpreadsheetTimeZone();
   const ejercicios = leer(ss, 'Ejercicios').filter(function (f) { return f[0]; }).map(function (f) {
-    return { id: String(f[0]), nombre: String(f[1]), notas: String(f[2] || ''), archivado: f[3] === 'Sí' };
+    return { id: String(f[0]), nombre: String(f[1]), notas: String(f[2] || ''), archivado: f[3] === 'Sí', favorito: f[4] === 'Sí' };
   });
 
   const rutinas = [], porId = {};

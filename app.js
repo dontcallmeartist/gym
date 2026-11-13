@@ -12,7 +12,7 @@
  * No hay datos personales ni claves aquí: la URL del script y la clave se
  * escriben en Ajustes y se guardan solo en el dispositivo.
  */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 /* ==================== 1. Utilidades ==================== */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -385,7 +385,7 @@ function syncNow({ force = false } = {}) {
         for (const s of chunk) for (const set of setsBySession.get(s.id)) rows.push(rowOf(set, s, exMap, routines));
         const body = { action: 'sync', sesiones: chunk.map((s) => s.id), registros: rows };
         if (first) {
-          body.ejercicios = dirtyEx.map((e) => ({ id: e.id, nombre: e.name, notas: e.notes || '', archivado: !!e.archived }));
+          body.ejercicios = dirtyEx.map((e) => ({ id: e.id, nombre: e.name, notas: e.notes || '', archivado: !!e.archived, favorito: !!e.favorite }));
           body.rutinas = dirtyR.map((r) => routineOut(r, exMap));
           body.borrados = deletions;
         }
@@ -446,7 +446,7 @@ async function restoreFromGoogle() {
   const data = await callScript({ action: 'restore' });
   const now = Date.now();
   const exercises = new Map(data.ejercicios.map((e) => [e.id, {
-    id: e.id, name: e.nombre, notes: e.notas || '', archived: !!e.archivado, dirty: false, updatedAt: now,
+    id: e.id, name: e.nombre, notes: e.notas || '', archived: !!e.archivado, favorite: !!e.favorito, dirty: false, updatedAt: now,
   }]));
   const routines = data.rutinas.map((r) => ({
     id: r.id, name: r.nombre, startDate: r.inicio, endDate: r.fin || null, dirty: false, updatedAt: now,
@@ -613,20 +613,27 @@ async function viewTrain() {
 }
 
 /* ---------- Historial ---------- */
+const starBtn = (e) => `<button class="star${e.favorite ? ' on' : ''}" data-act="fav" data-id="${e.id}" aria-pressed="${!!e.favorite}" aria-label="${e.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}">${e.favorite ? '★' : '☆'}</button>`;
+
 async function viewHistory(sub, id) {
   if (sub === 'ex') return viewExercise(id);
   if (sub === 'ses') return viewSession(id);
   const exs = (await dbAll('exercises')).sort(byName);
   const lasts = await Promise.all(exs.map((e) => lastSetOf(e.id)));
-  const item = (e, last) => `<a class="list-item" href="#historial/ex/${e.id}">
-      <div class="main"><div class="title">${esc(e.name)}</div>
-      <div class="sub">${last ? `${fmtDate(last.date)} · ${fmtSet(last)}` : 'Sin registros'}</div></div>
-      <span class="chev">›</span></a>`;
-  const active = exs.map((e, i) => (!e.archived ? item(e, lasts[i]) : '')).join('');
-  const archived = exs.map((e, i) => (e.archived && lasts[i] ? item(e, lasts[i]) : '')).join('');
+  // Cada fila: el nombre abre el ejercicio; la estrella lo marca como favorito.
+  const item = (e, last) => `<div class="list-item">
+      <a class="main" href="#historial/ex/${e.id}"><div class="title">${esc(e.name)}</div>
+      <div class="sub">${last ? `${fmtDate(last.date)} · ${fmtSet(last)}` : 'Sin registros'}</div></a>
+      ${starBtn(e)}</div>`;
+  const rows = (pred) => exs.map((e, i) => (pred(e, i) ? item(e, lasts[i]) : '')).join('');
+  const favs = rows((e) => !e.archived && e.favorite);
+  const rest = rows((e) => !e.archived && !e.favorite);
+  const archived = rows((e, i) => e.archived && lasts[i]);
   return `<h1>Historial</h1>
-    ${active ? `<div class="list">${active}</div>` : '<div class="empty">Aún no hay ejercicios.</div>'}
-    ${archived ? `<h3>Archivados</h3><div class="list">${archived}</div>` : ''}`;
+    ${favs ? `<h3>★ Favoritos</h3><div class="list">${favs}</div><h3>Todos</h3>` : ''}
+    ${rest ? `<div class="list">${rest}</div>` : (favs ? '' : '<div class="empty">Aún no hay ejercicios.</div>')}
+    ${archived ? `<h3>Archivados</h3><div class="list">${archived}</div>` : ''}
+    ${!favs && rest ? '<p class="muted small center">Toca ☆ para marcar un ejercicio como favorito y verlo arriba.</p>' : ''}`;
 }
 
 function chartSvg(points, unit) {
@@ -683,7 +690,7 @@ async function viewExercise(id) {
       <span class="chev">›</span></a>`;
   }).join('');
   return `<a class="btn btn-ghost back" href="#historial">‹ Historial</a>
-    <h1>${esc(ex.name)}</h1>
+    <div class="row"><h1 class="spacer">${esc(ex.name)}</h1>${starBtn(ex)}</div>
     ${ex.notes ? `<p class="muted">${esc(ex.notes)}</p>` : ''}
     <div class="card">
       <div class="seg"><button class="${ui.chart === 'peso' ? 'on' : ''}" data-act="chart" data-mode="peso">Peso máx.</button><button class="${ui.chart === 'vol' ? 'on' : ''}" data-act="chart" data-mode="vol">Volumen</button></div>
@@ -1039,6 +1046,13 @@ const ACTIONS = {
       <p class="muted small">Objetivo: ${targetText(item)}</p>
       <div class="card note-text">${esc(item.note)}</div>
       <button class="btn-block" data-act="sheet-close">Cerrar</button>`);
+  },
+
+  async fav(el) {
+    const ex = await dbGet('exercises', el.dataset.id);
+    ex.favorite = !ex.favorite;
+    await dbPut('exercises', touch(ex));
+    scheduleSync(); rerender();
   },
 
   chart(el) { ui.chart = el.dataset.mode; rerender(); },

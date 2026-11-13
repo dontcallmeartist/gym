@@ -83,7 +83,7 @@ if (dryRun) { console.log('\n(--probar: no se ha escrito nada)'); { process.exit
 
 await call({
   action: 'sync', sesiones: [], registros: [], borrados: [],
-  ejercicios: ejercicios.map(({ id, nombre, notas, archivado }) => ({ id, nombre, notas, archivado })),
+  ejercicios: ejercicios.map(({ id, nombre, notas, archivado, favorito }) => ({ id, nombre, notas, archivado, favorito: !!favorito })),
   rutinas: [...archivadas, nueva],
 });
 const check = await call({ action: 'restore' });
