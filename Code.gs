@@ -18,7 +18,7 @@ const CLAVE_SECRETA = 'CAMBIA_ESTA_CLAVE';
 const COLUMNAS = {
   Registros: ['id_serie', 'fecha', 'rutina', 'día', 'ejercicio_id', 'ejercicio', 'serie', 'peso', 'reps', 'nota', 'id_sesion', 'id_rutina', 'id_dia'],
   Ejercicios: ['ejercicio_id', 'nombre', 'notas', 'archivado'],
-  Rutinas: ['id_rutina', 'rutina', 'inicio', 'fin', 'estado', 'id_dia', 'orden_dia', 'día', 'día_semana', 'orden', 'ejercicio_id', 'ejercicio', 'series', 'reps_min', 'reps_max', 'incremento_kg'],
+  Rutinas: ['id_rutina', 'rutina', 'inicio', 'fin', 'estado', 'id_dia', 'orden_dia', 'día', 'día_semana', 'orden', 'ejercicio_id', 'ejercicio', 'series', 'reps_min', 'reps_max', 'incremento_kg', 'notas'],
   Progreso: ['ejercicio', 'semana (lunes)', 'peso_máx_kg', 'volumen_kg', 'series'],
 };
 const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -66,8 +66,10 @@ function prepararHojas(ss) {
   Object.keys(COLUMNAS).forEach(function (nombre) {
     let sh = ss.getSheetByName(nombre);
     if (!sh) sh = ss.insertSheet(nombre);
-    if (sh.getLastRow() === 0) {
-      sh.getRange(1, 1, 1, COLUMNAS[nombre].length).setValues([COLUMNAS[nombre]]).setFontWeight('bold');
+    const cab = sh.getRange(1, 1, 1, COLUMNAS[nombre].length);
+    if (sh.getLastRow() === 0 || cab.getValues()[0].join('|') !== COLUMNAS[nombre].join('|')) {
+      // Hoja nueva, o columnas añadidas en una versión posterior: (re)escribir la cabecera.
+      cab.setValues([COLUMNAS[nombre]]).setFontWeight('bold');
       sh.setFrozenRows(1);
     }
   });
@@ -146,13 +148,13 @@ function sincronizar(ss, body) {
       nombresRutina[r.id] = r.nombre;
       const estado = r.fin ? 'Archivada' : 'Activa';
       const base = [r.id, texto(r.nombre), r.inicio, r.fin || '', estado];
-      if (!r.dias.length) filas.push(base.concat(['', '', '', '', '', '', '', '', '', '', '']));
+      if (!r.dias.length) filas.push(base.concat(['', '', '', '', '', '', '', '', '', '', '', '']));
       r.dias.forEach(function (d, di) {
         nombresDia[d.id] = d.nombre;
         const dia = [d.id, di + 1, texto(d.nombre), d.dia_semana === null || d.dia_semana === undefined ? '' : DIAS_SEMANA[d.dia_semana]];
-        if (!d.ejercicios.length) filas.push(base.concat(dia, ['', '', '', '', '', '', '']));
+        if (!d.ejercicios.length) filas.push(base.concat(dia, ['', '', '', '', '', '', '', '']));
         d.ejercicios.forEach(function (it, ii) {
-          filas.push(base.concat(dia, [ii + 1, it.ejercicio_id, texto(it.ejercicio), it.series, it.reps_min, it.reps_max, it.incremento]));
+          filas.push(base.concat(dia, [ii + 1, it.ejercicio_id, texto(it.ejercicio), it.series, it.reps_min, it.reps_max, it.incremento, texto(it.notas || '')]));
         });
       });
     });
@@ -235,7 +237,7 @@ function restaurar(ss) {
       r.dias.push(d);
     }
     if (f[10]) {
-      d.ejercicios.push({ orden: Number(f[9]), ejercicio_id: String(f[10]), ejercicio: String(f[11]), series: Number(f[12]), reps_min: Number(f[13]), reps_max: Number(f[14]), incremento: Number(f[15]) });
+      d.ejercicios.push({ orden: Number(f[9]), ejercicio_id: String(f[10]), ejercicio: String(f[11]), series: Number(f[12]), reps_min: Number(f[13]), reps_max: Number(f[14]), incremento: Number(f[15]), notas: String(f[16] || '') });
     }
   });
   rutinas.forEach(function (r) {

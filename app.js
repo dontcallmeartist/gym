@@ -12,7 +12,7 @@
  * No hay datos personales ni claves aquí: la URL del script y la clave se
  * escriben en Ajustes y se guardan solo en el dispositivo.
  */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.1.0';
 
 /* ==================== 1. Utilidades ==================== */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -151,7 +151,9 @@ const lastSessionOf = (exerciseId, excludeSessionId) => tx(['sets'], 'readonly',
 /* ==================== 3. Datos y reglas ==================== */
 // Marca un objeto como modificado (pendiente de enviar a Google).
 const touch = (o) => Object.assign(o, { updatedAt: Date.now(), dirty: true });
-const newItem = (exerciseId) => ({ exerciseId, sets: 3, repMin: 8, repMax: 12, increment: 2.5 });
+// Cada ejercicio dentro de una rutina lleva su objetivo y una nota propia de esa rutina (botón ⓘ).
+const newItem = (exerciseId) => ({ exerciseId, sets: 3, repMin: 8, repMax: 12, increment: 2.5, note: '' });
+const targetText = (i, sep = ' × ') => `${i.sets}${sep}${i.repMin === i.repMax ? i.repMin : `${i.repMin}–${i.repMax}`}`;
 const activeRoutine = async () => (await dbAll('routines')).find((r) => !r.endDate) || null;
 
 async function seedIfNeeded() {
@@ -201,8 +203,11 @@ function progression(item, last) {
   const sets = last.sets;
   const top = Math.max(...sets.map((s) => s.weight));
   const allMax = sets.length >= item.sets && sets.every((s) => s.reps >= item.repMax);
+  if (allMax && !item.increment) {
+    return { up: false, text: '✓ Objetivo cumplido', prefill: (i) => { const s = sets[Math.min(i, sets.length - 1)]; return { w: s.weight, r: s.reps }; } };
+  }
   if (allMax) {
-    const w = round2(top + (item.increment ?? 2.5));
+    const w = round2(top + item.increment);
     return { up: true, text: `↑ Sube a ${fmtNum(w)} kg`, prefill: () => ({ w, r: item.repMin }) };
   }
   return {
@@ -326,7 +331,7 @@ function routineOut(r, exMap) {
       id: d.id, nombre: d.name, dia_semana: d.weekday,
       ejercicios: d.items.map((i) => ({
         ejercicio_id: i.exerciseId, ejercicio: exMap.get(i.exerciseId)?.name ?? '',
-        series: i.sets, reps_min: i.repMin, reps_max: i.repMax, incremento: i.increment,
+        series: i.sets, reps_min: i.repMin, reps_max: i.repMax, incremento: i.increment, notas: i.note || '',
       })),
     })),
   };
@@ -449,7 +454,7 @@ async function restoreFromGoogle() {
       id: d.id, name: d.nombre, weekday: d.dia_semana ?? null,
       items: d.ejercicios.map((i) => ({
         exerciseId: i.ejercicio_id, sets: Number(i.series), repMin: Number(i.reps_min),
-        repMax: Number(i.reps_max), increment: Number(i.incremento),
+        repMax: Number(i.reps_max), increment: Number(i.incremento), note: i.notas || '',
       })),
     })),
   }));
@@ -555,7 +560,7 @@ async function viewTrain() {
     dayId = ui.dayId;
   }
   const day = routine.days.find((d) => d.id === dayId) || routine.days[0];
-  ui.train = { routineId: routine.id, dayId: day.id, routineName: routine.name, dayName: day.name };
+  ui.train = { routineId: routine.id, dayId: day.id, routineName: routine.name, dayName: day.name, items: day.items };
 
   const exMap = await exercisesMap();
   const doneSets = session ? await setsOfSession(session.id) : [];
@@ -589,7 +594,7 @@ async function viewTrain() {
       rowsHtml += setRow({ exId: ex.id, n, w: v ? v.w : pre.w, r: v ? v.r : pre.r, note: v?.note, done: false, mode: 'train' });
     }
     html += `<section class="card">
-      <div class="ex-head"><h2>${esc(ex.name)}</h2><span class="target">${item.sets} × ${item.repMin}–${item.repMax}</span></div>
+      <div class="ex-head"><h2>${esc(ex.name)}</h2>${item.note ? `<button class="info-btn" data-act="info" data-di="${idx}" aria-label="Notas del ejercicio">i</button>` : ''}<span class="target">${targetText(item)}</span></div>
       ${last.sets.length
         ? `<div class="last"><span class="date">Última vez · ${fmtDate(last.date)}</span><b>${last.sets.map(fmtSet).join(' · ')}</b></div>`
         : '<div class="last muted">Primera vez con este ejercicio</div>'}
@@ -719,7 +724,7 @@ async function viewSession(id) {
 /* ---------- Rutinas ---------- */
 function daysSummary(r, exMap) {
   return r.days.map((d) => `<p><b>${esc(d.name)}</b>${d.weekday !== null && d.weekday !== undefined ? ` <span class="muted small">· ${WEEKDAYS[d.weekday]}</span>` : ''}<br>
-    <span class="muted small">${d.items.map((i) => `${esc(exMap.get(i.exerciseId)?.name ?? '?')} ${i.sets}×${i.repMin}–${i.repMax}`).join(' · ') || 'Sin ejercicios'}</span></p>`).join('');
+    <span class="muted small">${d.items.map((i) => `${esc(exMap.get(i.exerciseId)?.name ?? '?')} ${targetText(i, '×')}`).join(' · ') || 'Sin ejercicios'}</span></p>`).join('');
 }
 
 async function viewRoutines(sub, id) {
@@ -796,7 +801,9 @@ async function viewRoutineEditor(sub, id) {
           <div><label>Reps mín.</label><input data-bind="item.repMin" data-di="${di}" data-ii="${ii}" inputmode="numeric" value="${esc(inputNum(it.repMin))}"></div>
           <div><label>Reps máx.</label><input data-bind="item.repMax" data-di="${di}" data-ii="${ii}" inputmode="numeric" value="${esc(inputNum(it.repMax))}"></div>
           <div><label>Subir kg</label><input data-bind="item.increment" data-di="${di}" data-ii="${ii}" inputmode="decimal" value="${esc(inputNum(it.increment))}"></div>
-        </div></div>`).join('')}</div>
+        </div>
+        <label>Notas (se ven con el botón ⓘ)</label>
+        <textarea data-bind="item.note" data-di="${di}" data-ii="${ii}" rows="2" placeholder="Pausa, técnica, drop set…">${esc(it.note || '')}</textarea></div>`).join('')}</div>
       <button class="btn-ghost btn-small" data-act="item-add" data-di="${di}">+ Añadir ejercicio</button>
     </section>`).join('');
   return `<a class="btn btn-ghost back" href="#rutinas" data-act="edit-cancel">‹ Cancelar</a>
@@ -1025,6 +1032,15 @@ const ACTIONS = {
     rerender();
   },
 
+  async info(el) {
+    const item = ui.train.items[Number(el.dataset.di)];
+    const ex = await dbGet('exercises', item.exerciseId);
+    openSheet(`<h2>${esc(ex?.name ?? '')}</h2>
+      <p class="muted small">Objetivo: ${targetText(item)}</p>
+      <div class="card note-text">${esc(item.note)}</div>
+      <button class="btn-block" data-act="sheet-close">Cerrar</button>`);
+  },
+
   chart(el) { ui.chart = el.dataset.mode; rerender(); },
   'hist-all'() { ui.histAll = true; rerender(); },
 
@@ -1083,6 +1099,7 @@ const ACTIONS = {
         it.repMin = Math.max(1, Math.round(it.repMin || 8));
         it.repMax = Math.max(it.repMin, Math.round(it.repMax || it.repMin));
         it.increment = it.increment === null || it.increment === undefined || it.increment < 0 ? 2.5 : round2(it.increment);
+        it.note = (it.note || '').trim();
       });
     });
     const days = ed.days.map(({ id, name, weekday, items }) => ({ id, name, weekday: weekday ?? null, items }));
@@ -1252,6 +1269,7 @@ function onBind(el) {
   if (key === 'name') ed.name = v;
   else if (key === 'day.name') ed.days[di].name = v;
   else if (key === 'day.weekday') ed.days[di].weekday = v === '' ? null : Number(v);
+  else if (key === 'item.note') ed.days[di].items[ii].note = v;
   else if (key.startsWith('item.')) ed.days[di].items[ii][key.slice(5)] = parseNum(v);
 }
 
