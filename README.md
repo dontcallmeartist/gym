@@ -71,7 +71,7 @@ cambia).
 2. Pulsa el botón **Compartir** (cuadrado con flecha hacia arriba).
 3. Elige **Añadir a pantalla de inicio** (si no lo ves, desliza la lista hacia
    abajo). Comprueba que «Abrir como app web» está activado → **Añadir**.
-4. Abre la app desde el icono naranja de la pesa. Se abre a pantalla completa y
+4. Abre la app desde el icono de la pesa. Se abre a pantalla completa y
    funciona aunque no tengas cobertura.
 
 ## 4. Conectar la app con tu hoja de Google
@@ -143,4 +143,4 @@ del todo y vuelve a abrirla).
   - `node tools/serve.mjs` → sirve la app en http://localhost:8080
   - `node tools/mock-apps-script.mjs 8090 clave` → ejecuta el `Code.gs` real con
     una hoja simulada (URL `http://localhost:8090/exec`), para probar sin Google.
-  - `node tools/make-icons.mjs` → regenera los iconos.
+  - `./tools/make-icons.ps1` (PowerShell) → genera los iconos a partir de `icons/icono_gimnasio_1024.png`.

@@ -1,6 +1,6 @@
 // Service worker: guarda la app en el móvil para que funcione sin conexión.
 // Al publicar cambios, sube VERSION para que el móvil descargue la versión nueva.
-const VERSION = 'gym-v2';
+const VERSION = 'gym-v3';
 const FILES = [
   './',
   'index.html',
