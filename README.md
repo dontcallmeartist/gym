@@ -101,7 +101,11 @@ cambia).
 No cambies el nombre ni el orden de las columnas de estas pestañas. Sí puedes
 añadir pestañas o gráficas tuyas.
 
-## 5. Cambiar de móvil o si se borran los datos de Safari
+## 5. Cambiar de móvil, reinstalar la app o si se borran los datos
+
+> ⚠ **Si borras la app de la pantalla de inicio, se borran sus datos del iPhone**
+> (cada app web guarda sus datos aparte). Antes de borrarla, comprueba en Ajustes que
+> pone «Todo sincronizado». Al volver a instalarla, sigue estos pasos para recuperarlo todo.
 
 1. Instala la app en el móvil nuevo (paso 3).
 2. En **Ajustes**, pon la URL y la clave y pulsa **Probar conexión**.
