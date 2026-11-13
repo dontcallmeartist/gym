@@ -139,6 +139,8 @@ del todo y vuelve a abrirla).
   móviles descarguen la versión nueva.
 - Sincronización: POST `text/plain` con JSON (evita la petición OPTIONS que
   Apps Script no admite). Acciones `ping`, `sync` (upsert por id) y `restore`.
+- `tests/`: pruebas automáticas con Chrome. `cd tests && npm install`, arrancar `tools/serve.mjs` y
+  `tools/mock-apps-script.mjs 8090 clave-de-prueba`, y luego `npm test`.
 - `tools/`: utilidades solo para desarrollo (no las usa la app):
   - `node tools/serve.mjs` → sirve la app en http://localhost:8080
   - `node tools/mock-apps-script.mjs 8090 clave` → ejecuta el `Code.gs` real con

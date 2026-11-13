@@ -1,0 +1,12 @@
+{
+  "name": "gym-tracker-tests",
+  "private": true,
+  "type": "module",
+  "description": "Pruebas automáticas (Chrome sin ventana). Antes: node ../tools/serve.mjs y node ../tools/mock-apps-script.mjs 8090 clave-de-prueba",
+  "scripts": {
+    "test": "node basico.mjs && node completo.mjs && node olvidos.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.49.1"
+  }
+}
